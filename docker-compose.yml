@@ -1,0 +1,35 @@
+version: '3.7' # docker version
+services:
+  auth-server:
+    container_name: auth-server
+    build: ./server # build dockerfile to docker image current dir
+    ports:
+      - "8002:8002" # map external port and internal port 
+  mysql:
+    image: mysql:latest
+    container_name: mysql-auth
+    environment:
+      MYSQL_ROOT_PASSWORD: root # define password
+      MYSQL_DATABASE: mydb # define initial database(schema) mysql
+    ports:
+      - "3308:3306" # map external and internal port 
+    volumes:
+      - mysql-db:/var/lib/mysql # map path local to path database in container
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: phpmyadmin-auth
+    environment:
+      PMA_HOST: mysql # ระบุ host ที่จะให้ phpmyadmin ไปจัดการ ซึ่งสามารถใส่เป็นชื่อ container name (db) ได้เลย
+      PMA_PORT: 3306 # ระบุ port ของ Database [the internal MySQL port]
+      PMA_USER: root  # ระบุ user ของ Database
+      PMA_PASSWORD: root  # ระบุ password ของ Database
+    ports:
+      - "8082:80"
+    depends_on:
+      - mysql
+    
+
+volumes:
+  mysql-db: 
+    driver: local # use docker volume store in local and auto map path
