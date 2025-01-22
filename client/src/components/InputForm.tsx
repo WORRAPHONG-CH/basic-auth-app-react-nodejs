@@ -23,7 +23,7 @@ const InputForm:React.FC<InputFormProps> =
         placeholder={placeholder} 
         onChange={onChange}
         className='my-1 pl-2 outline-none w-full rounded-md mx-2'
-        />
+        required/>
     </div>
   )
 }

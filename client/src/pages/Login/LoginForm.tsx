@@ -1,9 +1,11 @@
 // import React from 'react'
 import { useState } from "react"
 import { Link } from "react-router-dom";
-// import axios from "axios";
+import axios from "axios";
 import React from "react";
 import {motion} from 'framer-motion';
+import { useNavigate } from "react-router-dom";
+
 
 import InputForm from "../../components/InputForm";
 import Reveal from "../../components/Reveal";
@@ -28,15 +30,39 @@ const variantButton = {
 }
 
 const Login:React.FC = () => {
-
+  const navigate = useNavigate();
   const [email,setEmail] = useState(''); // The state will be updated and re-render component every words
   const [password,setPassword] = useState('');
 
-  console.log(email, password);
-  console.log('re-render') // component re-render every word while typing on keyboard
+  // console.log(email, password);
+  // console.log('re-render') // component re-render every word while typing on keyboard
 
-  const handleLoginSubmit = (e:React.FormEvent) =>{
+  const handleLoginSubmit = async (e:React.FormEvent<HTMLFormElement>) =>{
     e.preventDefault(); // Avoid web refresh the page after submit
+    console.log('event:',email,password);
+    
+    
+    
+    try{
+      if(!email || !password){
+        throw new Error('Email and password is required !')
+      }
+      const response = await axios.post(`${import.meta.env.VITE_PUBLIC_API_URL}/api/login`,{
+        email,
+        password
+      }, {
+        withCredentials: true // Include credentials in the request
+      });
+      console.log(response);
+      if(response.statusText === 'OK')[
+        navigate('/users')
+      ]
+     
+      
+    }catch(error){
+      console.log((error as Error).message)
+    }
+
     
   }
   return (
@@ -52,7 +78,7 @@ const Login:React.FC = () => {
               <p className="mt-1 text-sm text-gray-500">Try login for better experience</p>
             </div>
 
-            <form className="" onSubmit={handleLoginSubmit}>
+            <form onSubmit={handleLoginSubmit}>
               <div className="flex flex-row items-center border-2 py-2 px-3 rounded-2xl mb-4 hover:border-purple-400 ">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
@@ -66,18 +92,15 @@ const Login:React.FC = () => {
                 <InputForm type="password" name="password" placeholder="Password" value={password} onChange={(e)=>{setPassword(e.target.value)}} />
               </div>
               <div className="w-full flex flex-row justify-center">
-                <Link to={'/login'} className="w-full flex justify-center">
-                  <motion.button className="w-3/4 flex justify-center items-center font-semibold border-2 bg-gradient-to-tr from-blue-800 to-purple-600 text-white text-lg mt-4 px-3 py-2 rounded-2xl shadow-md hover:opacity-100 scale-95 hover:scale-100 "
-                  variants={variantButton} initial={'hidden'} animate={'visible'} whileHover={{scale:1.1}}>
-                  Login 
-                  <span>
-                    <svg className="h-6 w-6 mx-2" fill="none" strokeLinecap="round"strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
-                      <path d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </span>
-                  </motion.button>
-                </Link>
-
+                <motion.button type="submit" className="w-3/4 flex justify-center items-center font-semibold border-2 bg-gradient-to-tr from-blue-800 to-purple-600 text-white text-lg mt-4 px-3 py-2 rounded-2xl shadow-md hover:opacity-100 scale-95 hover:scale-100 "
+                variants={variantButton} initial={'hidden'} animate={'visible'} whileHover={{scale:1.1}}>
+                Login 
+                <span>
+                  <svg className="h-6 w-6 mx-2" fill="none" strokeLinecap="round"strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                    <path d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </span>
+                </motion.button>
               </div>
               <div className="flex justify-between mt-2">
                 <Link to={"#"} className="text-sm  ms-2 opacity-65 hover:opacity-95">Forget password?</Link>

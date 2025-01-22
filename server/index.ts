@@ -1,7 +1,7 @@
-import express, {Request,Response} from "express"; // for making RESTAPI
+import express, {NextFunction, Request,Response} from "express"; // for making RESTAPI
 import bodyParser from "body-parser"; // get body from request
 import mysql from 'mysql2/promise'; // connect and manage to database
-import jwt, { decode } from 'jsonwebtoken'; // encrypt and attach with token when login sucess
+import jwt, {JwtPayload, Secret} from 'jsonwebtoken'; // encrypt and attach with token when login sucess
 import cookieParser from 'cookie-parser'; // For use and save cookie
 import session from 'express-session'; // For login and incase use session save identity 
 import bcrypt from 'bcrypt'; // For hasing(one-way encryption) password
@@ -10,11 +10,12 @@ import dotenv from 'dotenv'; // for import env file
 
 import {Users,UserLogin} from './interface';
 
-dotenv.config();
+dotenv.config({ path: './.env.local' });
 const app = express(); // for handle server
 const PORT = 8002; // use expose port
 // const secretKey = process.env.SECRET_KEY ? process.env.SECRET_KEY as string : undefined // For encrypt and decrypt JWT Token
 const secretKey = process.env.SECRET_KEY as string // For encrypt and decrypt JWT Token
+console.log('KEY:',secretKey);
 
 // Ensure the secret key is defined
 if(!secretKey){
@@ -24,11 +25,11 @@ if(!secretKey){
 // Middleware => runs before response 
 
 app.use(bodyParser.json()); // Get json body from request
-app.use(cookieParser());
+app.use(cookieParser()); // Parse cookies before handling routes
 app.use(
     cors({
-        credentials:true,
-        origin:["http://localhost:8002",] // allow only this request to get data
+        credentials: true,
+        origin: ["http://localhost:8002", "http://localhost:5173"] // allow only these requests to get data
     }),
 );
 app.use(
@@ -38,6 +39,39 @@ app.use(
         saveUninitialized:true,
     }),
 );
+
+interface AuthRequest extends Request{
+    user?: JwtPayload,
+}
+
+// middleware 
+const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction):void => {
+    console.log('===== middleware =====');
+    // get token from cookie
+    const token = req.cookies.jwtToken;
+    console.log("token:",token)
+
+    // if token not exists
+    if(!token){
+        res.status(401).json({message:'Unauthorize'});
+        return;
+    }
+
+    try{
+        
+        const userDecode = jwt.verify(token,secretKey) as JwtPayload; // verify token to decode jwt payload 
+        req.user = userDecode;
+        console.log("middleware user:",req.user,userDecode);
+        next();
+
+
+        
+    }catch(error){
+        res.status(400).json({error:(error as Error).message});
+        
+    }
+
+}
 
 
 
@@ -71,12 +105,12 @@ const initMySQL = async () =>{
 
 
 // test api 
-app.get('/',async (req:Request,res:Response)=>{
+app.get('/',async (_req:Request,res:Response)=>{
     res.status(200).send("WELCOME TO BASIC AUTHENTICATION");
 });
 
 // Get all users from mysql database [test]
-app.get('/api/users-test', async (req:Request,res:Response)=>{
+app.get('/api/users-test', async (_req:Request,res:Response)=>{
     try{
         const [results] = await mySQLConnection.query('SELECT * FROM users');
         
@@ -123,7 +157,7 @@ app.post('/api/register', async (req:Request,res:Response)=>{
 
     // Try to insert new users, if email not found
     try{
-        const [results] = await mySQLConnection.query('INSERT INTO users SET ?',insertData) // insert data into database 
+        await mySQLConnection.query('INSERT INTO users SET ?',insertData) // insert data into database 
         // console.log(results);
         res.status(201).json({message:"Insert Ok",user:insertData});
 
@@ -136,12 +170,12 @@ app.post('/api/register', async (req:Request,res:Response)=>{
     };
 });
 
-// Login API => to identify user email,password in database
+// Login API => to identify user email,password in database and attach token to cookie
 app.post('/api/login', async (req:Request,res:Response)=>{
     try{
         // Get data from request body (json)
-        const {name,email,password} = req.body; // [object destructuring]
-        console.log(`login: ${name} ${email} ${password}`);
+        const {email,password} = req.body; // [object destructuring]
+        console.log(`login: ${email} ${password}`);
 
         // Select user data from database 
         const [results] = await mySQLConnection.query('SELECT * FROM users WHERE email=?',email);
@@ -157,11 +191,30 @@ app.post('/api/login', async (req:Request,res:Response)=>{
             return 
         }
         // If login success
-        
-        // Create JWT Token to identyfy user
-        const jwtToken = jwt.sign({email:user.email,role:"admin"},secretKey,{expiresIn:"1h"}); // payload, secretKey, additional options
 
-        // 1. Attach JWT token with header (user identity)
+        // Only role 'admin' can access resource(all user)
+        let jwtToken:string = '';
+        if(user.email === "park@gmail.com"){
+             // Create JWT Token to identyfy user
+            jwtToken = jwt.sign({email:user.email,role:"admin"},secretKey,{expiresIn:"1h"}); // payload, secretKey, additional options
+        }
+        // role 'user' can access only own data
+        else{
+             // Create JWT Token to identyfy user
+            jwtToken = jwt.sign({email:user.email,role:"user"},secretKey,{expiresIn:"1h"}); // payload, secretKey, additional options
+        }
+        
+
+        // 1. Attach JWT token with cookie (user identity)
+        res.cookie("jwtToken", jwtToken, {
+            maxAge: 300000,
+            secure: true,
+            httpOnly: true,
+            sameSite: "none",
+            domain: 'localhost',
+            path: '/'
+        });
+        console.log('Login Successfully')
     
         res.status(200).json({message:"Login Successfully",jwtToken});
 
@@ -174,8 +227,43 @@ app.post('/api/login', async (req:Request,res:Response)=>{
     };
 });
 
-// GET all users as "Admin" role After login
-app.get('/api/users', async (req:Request,res:Response)=>{
+// GET all users as "Admin" role After login [attach jwt token to cookies]
+app.get('/api/users', authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const user = req.user as UserLogin;
+        console.log("user:", user);
+
+        // Recheck if the email exists in the database
+        const [checkEmail] = await mySQLConnection.query('SELECT * FROM users WHERE email = ?', [user.email]);
+
+        if (!checkEmail[0]) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+
+        // Check role (if found user)
+        if (user.role !== 'admin') {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        // Query all users from database [Already identify secure user]
+        const [results] = await mySQLConnection.query('SELECT * FROM users');
+
+        // RESPONSE 
+        res.status(200).json({ users: results });
+
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            res.status(400).json({ error: error.message });
+        } else {
+            res.status(500).json({ error: "Internal Server Error" });
+        }
+    }
+});
+
+// GET all users as "Admin" role After login [attach jwt token at headers]
+app.get('/api/users-head', async (req:Request,res:Response)=>{
     try{
         // Get jwt token from headers ( Bearear type => start token with bearear + jwt token)
         const authHeader = req.headers['authorization']; // key in headers
@@ -231,6 +319,7 @@ app.get('/api/users', async (req:Request,res:Response)=>{
     };
 });
 
+// Get user according to id(query param)
 app.get('/api/user/:id',async (req:Request,res:Response)=>{
     try{
         const userID  = req.params; // Get params from url

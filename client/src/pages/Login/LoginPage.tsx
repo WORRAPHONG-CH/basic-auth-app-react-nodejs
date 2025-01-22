@@ -11,7 +11,7 @@ function LoginPage() {
         <div className="hidden bg-gradient-to-tr from-blue-800 to-purple-700 w-full md:px-5 col-span-1 md:flex md:flex-row justify-around items-center bg-cover" 
             
             style ={{backgroundImage: `url(https://images.pexels.com/photos/114979/pexels-photo-114979.jpeg?auto=compress&cs=tinysrgb&dpr=2&w=500)`}}>
-            {/* <img src="https://picsum.photos/seed/picsum/200/300" alt="seed" className="w-full "/> */}
+            {/* <img src="</div>https://picsum.photos/seed/picsum/200/300" alt="seed" className="w-full "/> */}
             <div className="text-white">
               <Reveal><h1 className="font-bold text-4xl">Authentication</h1></Reveal>
               <Reveal><p className="mt-2 md:text-lg">The most popular to encrypt data is Bcrypt and JWT Token</p></Reveal>
